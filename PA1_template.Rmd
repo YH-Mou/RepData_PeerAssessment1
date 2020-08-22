@@ -4,22 +4,69 @@ output:
   html_document:
     keep_md: true
 ---
-
-
+```{r global_options}
+knitr::opts_chunk$set(echo=T, warning=FALSE, message=FALSE)
+```
 ## Loading and preprocessing the data
-
-
+```{r}
+data <- read.csv('activity.csv')
+data <- data.frame(data)
+```
 
 ## What is mean total number of steps taken per day?
-
+```{r}
+step_by_day <- with(data, sapply(split(steps, as.factor(date)), sum))
+hist(step_by_day, xlab = 'Steps', main = 'Total number of steps taken each day')
+cat('mean =', mean(step_by_day, na.rm = T), '(steps)')
+cat('median =', median(step_by_day, na.rm = T), '(steps)')
+```
 
 
 ## What is the average daily activity pattern?
+```{r}
+library(dplyr)
+step_by_interval <- summarize(group_by(data, interval), step = mean(steps, na.rm = T))
+step_by_interval <- data.frame(step_by_interval)
 
+plot(step_by_interval, type = 'l', xlab = '5-minute interval',  ylab = 'averaged steps across all days')
+
+max_interval <- with(step_by_interval, interval[which.max(step)])
+cat('The 5-minute interval that contains the maximum number of steps =', max_interval)
+```
 
 
 ## Imputing missing values
+```{r}
+na_count <- sum(is.na(data$steps))
+cat('There are', na_count, 'NAs')
+# Imputing missing values with averages of time intervals
+data_nomissing <- data
+data_nomissing <- merge(x = data_nomissing, y = step_by_interval, by = "interval", all.y = TRUE)
+data_nomissing[is.na(data_nomissing$steps),2] <- data_nomissing[is.na(data_nomissing$steps),4]
+data_nomissing <- data_nomissing[,c(2,3,1)]
 
-
+step_by_day_nomissing <- with(data_nomissing, sapply(split(steps, as.factor(date)), sum))
+hist(step_by_day, xlab = 'Steps', main = 'Total number of steps taken each day')
+cat('mean =', mean(step_by_day_nomissing), '(steps)')
+cat('median =', median(step_by_day_nomissing), '(steps)')
+```
+The median value changes while the mean value remaining the same after imputing missing values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+# Create the weekday indicator
+data_nomissing$date <- as.Date(data_nomissing$date)
+Saturday <- weekdays(as.Date('2020-08-01'))
+Sunday <- weekdays(as.Date('2020-08-02'))
+weekday_ind <- (weekdays(data_nomissing$date) == Saturday) | (weekdays(data_nomissing$date) == Sunday)
+data_nomissing$weekend[weekday_ind] <- 'weekend'
+data_nomissing$weekend[!weekday_ind] <- 'weekday'
+data_nomissing$weekend <- as.factor(data_nomissing$weekend)
+
+# Create the figure
+step_by_interval_weekday <- summarize(group_by(data_nomissing, weekend, interval), step = mean(steps, na.rm = T))
+step_by_interval_weekday <- data.frame(step_by_interval_weekday)
+
+library(lattice)
+xyplot(step ~ interval | weekend, data = step_by_interval_weekday, layout = c(1,2), type = 'l', xlab = 'Interval', ylab = 'Number of steps')
+```
